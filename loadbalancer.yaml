@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Modular CloudFormation template for public/private ALBs per environment
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [uat, qa, all]
+    Default: all
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  SecurityGroups:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+
+Mappings:
+  ALBConfig:
+    public-main:
+      Scheme: internet-facing
+      Internal: false
+    private-api:
+      Scheme: internal
+      Internal: true
+
+Conditions:
+  DeployUAT: !Or [!Equals [!Ref Environment, uat], !Equals [!Ref Environment, all]]
+  DeployQA:  !Or [!Equals [!Ref Environment, qa], !Equals [!Ref Environment, all]]
+
+Resources:
+
+  PublicALB-UAT:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Condition: DeployUAT
+    Properties:
+      Name: public-uat
+      Scheme: !FindInMap [ALBConfig, public-main, Scheme]
+      Type: application
+      Subnets: !Ref PublicSubnetIds
+      SecurityGroups: !Ref SecurityGroups
+      Tags:
+        - Key: Name
+          Value: public-uat
+        - Key: Environment
+          Value: uat
+
+  PrivateALB-QA:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Condition: DeployQA
+    Properties:
+      Name: private-qa
+      Scheme: !FindInMap [ALBConfig, private-api, Scheme]
+      Type: application
+      Subnets: !Ref PrivateSubnetIds
+      SecurityGroups: !Ref SecurityGroups
+      Tags:
+        - Key: Name
+          Value: private-qa
+        - Key: Environment
+          Value: qa
